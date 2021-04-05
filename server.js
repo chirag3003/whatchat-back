@@ -7,7 +7,8 @@ import cors from "cors";
 
 //custom imports
 import Message from "./db/message.js";
-
+import User from "./db/user.js";
+import Channel from "./db/channel.js";
 
 //app config
 const app = express();
@@ -29,7 +30,7 @@ app.use(cors());
 //DB config
 const connection_url = "mongodb+srv://chirag:chirag30@cluster0.qvesn.gcp.mongodb.net/whatchat?retryWrites=true&w=majority";
 mongoose.connect(connection_url,{
-    useCreateIndex:true,
+    // useCreateIndex:true,
     useNewUrlParser:true,
     useUnifiedTopology:true,
 });
@@ -64,6 +65,8 @@ db.once('open',()=>{
 app.get('/',(req,res)=>{
     res.status(200).send("hello world")
 })
+
+//
 app.get('/messages/sync',(req,res)=>{
     Message.find({},(err,data)=>{
         if(err){
@@ -87,7 +90,82 @@ app.post('/messages/new',(req,res)=>{
     })
 
 })
+//message channels
+app.post('/createChannel',(req,res) => {
+    // console.log(req.body)
+    
+    User.findOne({username:req.body.username},(err,data) => {
+        console.log(data)
+        for(let i = 0 ; i < data.channels.length; i++){
+            if(data.channels[i].name === req.body.sender){
+                console.log('already made')
+                break;
+            }
+        }
+        if(err) {
+            console.log(err);
+        }else{
+            if(!data){
+                res.send(false);
+            }else{
+                console.log(data)
+            }
+            Channel.create({
+                users:[data.username,req.body.sender],
+                
+            },(err,channel) => {
+                if(err){
+                    console.log(err);
+                }else{
+                    data.channels.push({id:channel._id,name:req.body.sender});
+                    data.save();
 
+                }
+                User.findOne({username:req.body.sender},(err,data) => {
+                    data.channels.push({name:req.body.username,id:channel._id});
+                    data.save(); 
+
+                })
+            })
+        }
+    })
+})
+
+//userAuth
+app.post('/signIn',(req,res) => {
+    User.findOne(req.body,(err,data) => {
+        if(err) {
+            console.log(err);
+        } else
+            res.send(data)
+        
+    })
+})
+app.post('/signUp',(req,res)=>{
+    User.findOne({username:req.body.username},(err,data) => {
+        if(err){
+            console.log(err);
+            return;
+        }
+        if(data){
+            res.send(false);
+        }else{
+            const user = {...req.body, 
+                channels:[]
+            }
+            console.log(user)
+            User.create(user,(err) => {
+                if(err){
+                    console.log(err);
+                }else{
+                    res.send(true);
+                }
+            })
+        }
+
+    })
+    
+})
 
 //listen
 app.listen(port,()=>{
